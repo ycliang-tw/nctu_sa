@@ -25,7 +25,7 @@ cpu_info()
 	model=`sysctl -n hw.model`
 	machine=`sysctl -n hw.machine`
 	ncpu=`sysctl -n hw.ncpu`
-	dialog --msgbox "CPU Info\nCPU Model: $model\nCPU Machine: $machine\nCPU Core: $ncpu" $h $w
+	dialog --msgbox "CPU Info\n\nCPU Model: $model\nCPU Machine: $machine\nCPU Core: $ncpu" $h $w
 }
 
 mem_info()
@@ -145,33 +145,53 @@ browse_file()
 	done
 }
 
+cpu_usage()
+{
+	dialog=`top -P -d 1 | grep ^CPU | sed 's/%//g' |\
+			awk 'BEGIN { total=0; id=0; print "dialog --mixedgauge \"CPU Loading\\\n"}\
+			{\
+				user=($3 + $5);\
+				sys=($7 + $9);\
+				idle=$11;\
+				printf "\\\n%s%d: USER: %04.1f%% SYST: %04.1f%% IDLE: %04.1f%%", "CPU", id, user, sys, idle;\
+				id++;\
+				total=total+user+sys;\
+			}\
+			END {printf "%s %d %d %d", "\"", 30, 60, total/id }'`
+
+	while true; do
+		eval $dialog
+		read
+		if [ -z $REPLY ]; then
+			break
+		fi
+	done
+
+}
+
 show_menu()
 {
 	## the result of dialog is outputed to stderr by default, see man dialog
 	exec 3>&1
-	result=`dialog --menu "SYS INFO" $h $w $mh 1 "CPU_INFO" 2 "MEMORY INFO" 3 "NETWORK INFO" 4 "FILE BROWSER" 2>&1 1>&3`
+	result=`dialog --menu "SYS INFO" $h $w $mh 1 "CPU INFO" 2 "MEMORY INFO" 3 "NETWORK INFO" 4 "FILE BROWSER" 5 "CPU USAGE" 2>&1 1>&3`
 	echo $result
 	exec 3>&-
 
 	case $result in
 		"1")
-			cpu_info
-			;;
+			cpu_info;;
 		"2")
-			mem_info
-			;;
+			mem_info;;
 		"3")
-			net_info
-			;;
+			net_info;;
 		"4")
-			browse_file
-			;;
+			browse_file;;
+		"5")
+			cpu_usage;;
 		"")
 			echo "Action has been cancelled!"
-			exit
-			;;
+			exit;;
 		*)
-			echo "no"
-			;;
+			echo "no";;
 	esac
 }

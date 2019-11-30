@@ -6,6 +6,7 @@
 
 . util.sh	# source util.sh
 
+
 main()
 {
 	while [ true ]; do ## "while :", "while true" both are ok
@@ -13,4 +14,10 @@ main()
 	done
 }
 
+unit_test()
+{
+	cpu_usage
+}
+
+#unit_test
 main
