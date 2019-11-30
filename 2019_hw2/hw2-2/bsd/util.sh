@@ -1,3 +1,7 @@
+#!/bin/bash
+h=30	# dialog height 0=auto
+w=60	# dialog width 0=auto
+mh=30	# dialog menu height 0=auto
 
 convert_unit()
 {
@@ -6,6 +10,7 @@ convert_unit()
 	idx=0
 	while true ;do
 		if [ `echo ${val} | awk '{if($1 < 1024.0) print "1"; else print "0"}'` -eq 1 ]; then
+			val=`echo $val | awk '{printf "%.2f", $1}'`
 			echo $val ${unit[${idx}]}
 			break
 		else
@@ -20,7 +25,7 @@ cpu_info()
 	model=`sysctl -n hw.model`
 	machine=`sysctl -n hw.machine`
 	ncpu=`sysctl -n hw.ncpu`
-	dialog --msgbox "CPU Info\nCPU Model: $model\nCPU Machine: $machine\nCPU Core: $ncpu"  30 60
+	dialog --msgbox "CPU Info\nCPU Model: $model\nCPU Machine: $machine\nCPU Core: $ncpu" $h $w
 }
 
 mem_info()
@@ -52,8 +57,8 @@ mem_info()
 
 	## dialog
 	while true; do
-		dialog --mixedgauge "$msg" 30 60 "$percent"
-		read -t 1
+		dialog --mixedgauge "$msg" $h $w "$percent"
+		read
 		if [ -z $REPLY ]; then
 			break
 		fi
@@ -62,44 +67,89 @@ mem_info()
 
 net_info()
 {
-	# first menu
-	interfaces=`netstat -i | awk '{if($1 != "Name") print $1}' | sort | uniq`
-	dialog="dialog --stdout --title 'Network Interfaces' --menu '' 30 60 10"
-	for i in $interfaces; do
-		dialog="$dialog $i '*'"
-	done
-	option=`eval $dialog`
-	
-	# info of interface
+	while true; do
+		# first menu
+		interfaces=`netstat -i | awk '{if($1 != "Name") print $1}' | sort | uniq`
+		dialog="dialog --stdout --title 'Network Interfaces' --menu '' $h $w $mh"
+		for i in $interfaces; do
+			dialog="$dialog $i '*'"
+		done
+		option=`eval $dialog`
+		if [ -z $option ]; then
+			break
+		fi
+		# info of interface
 <<padded_version	
-	pad='_______'
-	
-	IPv4='IPv4'
-	IPv4=`printf '%s %s' $IPv4 ${pad:${#IPv4}}`
-	ipv4=`ifconfig $option | grep inet | awk '{print $2}'`
-	Netmask='Netmask'
-	Netmask=`printf '%s %s' $Netmask ${pad:${#Netmask}}`
-	netmask=`ifconfig $option | grep inet | awk '{print $4}'`
+		pad='_______'
+		
+		IPv4='IPv4'
+		IPv4=`printf '%s %s' $IPv4 ${pad:${#IPv4}}`
+		ipv4=`ifconfig $option | grep "\<inet\>" | awk '{print $2}'`
+		Netmask='Netmask'
+		Netmask=`printf '%s %s' $Netmask ${pad:${#Netmask}}`
+		netmask=`ifconfig $option | grep "\<inet\>" | awk '{print $4}'`
 
-	Mac='Mac'
-	Mac=`printf '%s %s' $Mac ${pad:${#Mac}}`
-	mac=`ifconfig $option | grep ether | awk '{print $2}'`
+		Mac='Mac'
+		Mac=`printf '%s %s' $Mac ${pad:${#Mac}}`
+		mac=`ifconfig $option | grep ether | awk '{print $2}'`
 
-	msg="Interface Name: $option\n\n${IPv4}: ${ipv4}\n${Netmask}: ${netmask}\n${Mac}: ${mac}"
+		msg="Interface Name: $option\n\n${IPv4}: ${ipv4}\n${Netmask}: ${netmask}\n${Mac}: ${mac}"
 padded_version
 
-	ipv4=`ifconfig $option | grep inet | awk '{print $2}'`
-	netmask=`ifconfig $option | grep inet | awk '{print $4}'`
-	mac=`ifconfig $option | grep ether | awk '{print $2}'`
-	msg="Interface Name: ${option}\n\nIPv4: ${ipv4}\nNetmask: ${netmask}\nMac: ${mac}"
-	dialog --msgbox "$msg" 30 60 
+		ipv4=`ifconfig $option | grep "\<inet\>" | awk '{print $2}'`
+		netmask=`ifconfig $option | grep "\<inet\>" | awk '{print $4}'`
+		mac=`ifconfig $option | grep ether | awk '{print $2}'`
+		msg="Interface Name: ${option}\n\nIPv4: ${ipv4}\nNetmask: ${netmask}\nMac: ${mac}"
+		dialog --msgbox "$msg" $h $w
+	done
+}
+
+browse_file()
+{
+	while true; do
+		dialog="dialog --stdout --menu 'File Browser: $(pwd)' $h $w $mh "
+		# brace expansion has to used with comma
+		# ex. for i in {.*}; do echo $i; done	// output: {*}
+		# ex. for i in .*; do echo $i; done		// output: "$all_hidden_files_in_$pwd"
+		for file in {.,}*; do					# all the files in current directory
+			item=`file --mime-type $file | sed 's/://g'`
+			dialog="$dialog $item"
+		done
+
+		option=`eval $dialog`
+		if [ -z $option ]; then
+			break
+		elif [ -d $option ]; then
+			ls $option > /dev/null
+			if [ $? -ne 0 ]; then
+				dialog --msgbox "permission denied!" $h $w
+				continue
+			else
+				cd $option
+			fi
+		else
+			filename=$option
+			fileinfo=`file $filename | awk '{print $2}'`
+			filesize=`ls -l $filename | awk '{print $5}'`
+			read filesize unit < <(convert_unit $filesize)
+			file $filename | grep text > /dev/null	# determine if it's a text file
+			if [ $? -eq 0 ]; then
+				dialog --stdout --extra-button --extra-label 'EDIT' --msgbox "<File Name>: $filename\n<File Info>: $fileinfo\n<File Size>: $filesize $unit" $h $w
+				if [ $? -eq 3 ]; then
+					$EDITOR $filename
+				fi
+			else
+				dialog --stdout --msgbox "<File Name>: $filename\n<File Info>: $fileinfo\n<File Size>: $filesize $unit" $h $w
+			fi
+		fi
+	done
 }
 
 show_menu()
 {
 	## the result of dialog is outputed to stderr by default, see man dialog
 	exec 3>&1
-	result=`dialog --menu "SYS INFO" 30 60 10 1 "CPU_INFO" 2 "MEMORY INFO" 3 "NETWORK INFO" 4 "FILE BROWSER" 2>&1 1>&3`
+	result=`dialog --menu "SYS INFO" $h $w $mh 1 "CPU_INFO" 2 "MEMORY INFO" 3 "NETWORK INFO" 4 "FILE BROWSER" 2>&1 1>&3`
 	echo $result
 	exec 3>&-
 
@@ -111,10 +161,10 @@ show_menu()
 			mem_info
 			;;
 		"3")
-			echo "option three"
+			net_info
 			;;
 		"4")
-			echo "option four"
+			browse_file
 			;;
 		"")
 			echo "Action has been cancelled!"

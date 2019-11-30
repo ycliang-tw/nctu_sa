@@ -2,24 +2,15 @@
 
 ## program flow
 ##	source util.sh -> trap termination signals -> main
-#set -x
+# set -x
 
 . util.sh	# source util.sh
 
-browse_file()
-{
-	echo browse
-}
-
 main()
 {
-<< comment
-	while [ true ] ## "while :", "while true" both are ok
-	do
+	while [ true ]; do ## "while :", "while true" both are ok
 		show_menu
 	done
-comment
-	browse_file
 }
 
 main
