@@ -2,6 +2,7 @@
 h=30	# dialog height 0=auto
 w=60	# dialog width 0=auto
 mh=30	# dialog menu height 0=auto
+readsec=3 # read, wait 3 sec for input
 
 convert_unit()
 {
@@ -30,36 +31,36 @@ cpu_info()
 
 mem_info()
 {
-	msg="Memory Info and Usage\n\n"
-	## show memory info according to how htop calculates memory usage
-	##    htop source code-> htop/freebsd/FreeBSDProcessList.c:284 : static inline void FreeBSDProcessList_scanMemoryInfo
-	##    total_mem: hw.physmem
-	##    used_mem: active_mem + wired_mem
-	##        active_mem = vm.stats.vm.v_active_count * vm.stats.vm.v_page_size 
-	##        wired_mem = vm.stats.vm.v_wire_count * vm.stats.vm.v_page_size - kstat.zfs.misc.arcstats.size
-	##    free_mem: total_mem - used_mem
-#	total_mem=`sysctl -n hw.physmem`
-	total_mem=`sysctl -n hw.realmem`
-	page_size=`sysctl -n vm.stats.vm.v_page_size`
-	active_mem=$(($(sysctl -n vm.stats.vm.v_active_count) * $page_size))
-	wired_mem=$(( $(( $(sysctl -n vm.stats.vm.v_wire_count) * $page_size )) - $(sysctl -n kstat.zfs.misc.arcstats.size) ))
-	used_mem=$(($active_mem + $wired_mem))
-	free_mem=$(($total_mem - $used_mem))
-	
-	## convert unit
-	read number base < <(convert_unit $total_mem)
-	msg="${msg}Total: $number $base\n"
-	read number base < <(convert_unit $used_mem)
-	msg="${msg}Used: $number $base\n"
-	read number base < <(convert_unit $free_mem)
-	msg="${msg}Free: $number $base\n"
-	percent=`bc <<< "$used_mem *100/ $total_mem"`
-
-	## dialog
 	while true; do
+		msg="Memory Info and Usage\n\n"
+		## show memory info according to how htop calculates memory usage
+		##    htop source code-> htop/freebsd/FreeBSDProcessList.c:284 : static inline void FreeBSDProcessList_scanMemoryInfo
+		##    total_mem: hw.physmem
+		##    used_mem: active_mem + wired_mem
+		##        active_mem = vm.stats.vm.v_active_count * vm.stats.vm.v_page_size 
+		##        wired_mem = vm.stats.vm.v_wire_count * vm.stats.vm.v_page_size - kstat.zfs.misc.arcstats.size
+		##    free_mem: total_mem - used_mem
+#		total_mem=`sysctl -n hw.physmem`
+		total_mem=`sysctl -n hw.realmem`
+		page_size=`sysctl -n vm.stats.vm.v_page_size`
+		active_mem=$(($(sysctl -n vm.stats.vm.v_active_count) * $page_size))
+		wired_mem=$(( $(( $(sysctl -n vm.stats.vm.v_wire_count) * $page_size )) - $(sysctl -n kstat.zfs.misc.arcstats.size) ))
+		used_mem=$(($active_mem + $wired_mem))
+		free_mem=$(($total_mem - $used_mem))
+		
+		## convert unit
+		read number base < <(convert_unit $total_mem)
+		msg="${msg}Total: $number $base\n"
+		read number base < <(convert_unit $used_mem)
+		msg="${msg}Used: $number $base\n"
+		read number base < <(convert_unit $free_mem)
+		msg="${msg}Free: $number $base\n"
+		percent=`bc <<< "$used_mem *100/ $total_mem"`
+
+		## dialog
 		dialog --mixedgauge "$msg" $h $w "$percent"
-		read
-		if [ -z $REPLY ]; then
+		read -t $readsec
+		if [ $? -eq 0 ] && [ -z $REPLY ]; then
 			break
 		fi
 	done
@@ -147,22 +148,23 @@ browse_file()
 
 cpu_usage()
 {
-	dialog=`top -P -d 1 | grep ^CPU | sed 's/%//g' |\
-			awk 'BEGIN { total=0; id=0; print "dialog --mixedgauge \"CPU Loading\\\n"}\
-			{\
-				user=($3 + $5);\
-				sys=($7 + $9);\
-				idle=$11;\
-				printf "\\\n%s%d: USER: %04.1f%% SYST: %04.1f%% IDLE: %04.1f%%", "CPU", id, user, sys, idle;\
-				id++;\
-				total=total+user+sys;\
-			}\
-			END {printf "%s %d %d %d", "\"", 30, 60, total/id }'`
-
+	ncpu=`sysctl -n hw.ncpu`
 	while true; do
+		dialog=`top -P -d 2 | grep ^CPU | tail -n $ncpu | sed 's/%//g' |\
+				awk 'BEGIN { total=0; id=0; print "dialog --mixedgauge \"CPU Loading\\\n"}\
+				{\
+					user=($3 + $5);\
+					sys=($7 + $9);\
+					idle=$11;\
+					printf "\\\n%s%d: USER: %04.1f%% SYST: %04.1f%% IDLE: %04.1f%%", "CPU", id, user, sys, idle;\
+					id++;\
+					total=total+user+sys;\
+				}\
+				END {printf "%s %d %d %d", "\"", 30, 60, total/id }'`
+
 		eval $dialog
-		read
-		if [ -z $REPLY ]; then
+		read -t $readsec
+		if [ $? -eq 0 ] && [ -z $REPLY ]; then
 			break
 		fi
 	done
