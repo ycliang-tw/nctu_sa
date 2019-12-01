@@ -68,10 +68,18 @@ esac
 \`\`: command substitution will do somethin like pipe to get the output, so here the example script works just like the previous example.
 we could get the result through stderr after the redirections are done.
 
++ [remove leading space](https://stackoverflow.com/questions/369758/how-to-trim-whitespace-from-a-bash-variable)
+```shell==
+$> sed 's/^[[:space:]]*//g' <data>
+
+## [:space:]: regex of space
+## [[:space:]]: matches only one space
+```
+	+ [how to match spaces with regex](https://stackoverflow.com/questions/28256178/how-can-i-match-spaces-with-a-regexp-in-bash/28256343)
+
 ### keyword
 + process substitution `<( command )`
 + command substitution `\`\``, `$()`
 + here-string `<<<`
 + array `arr=(ele1 ele2)`, `declare -a|-A`
-+ 
 + zenity (GNOME enviroment)
