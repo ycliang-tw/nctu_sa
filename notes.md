@@ -83,3 +83,9 @@ $> sed 's/^[[:space:]]*//g' <data>
 + here-string `<<<`
 + array `arr=(ele1 ele2)`, `declare -a|-A`
 + zenity (GNOME enviroment)
+
+## Unix Related
+### keyword
++ [line discipline](https://blog.csdn.net/dog250/article/details/78818612)
+	+ Tmux, Screen
+
